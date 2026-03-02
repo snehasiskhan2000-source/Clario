@@ -138,7 +138,7 @@ async def handle_lookup(client, message: Message):
         
         # 4. SHOW THE FINAL JOKE AND FREEZE 💀
         try:
-            await msg.edit_text("💀 <b>Details Fetched Successfully From NASA Servers💀</b>", parse_mode=ParseMode.HTML)
+            await msg.edit_text(" <b>Details Fetched Successfully From NASA Servers💀</b>", parse_mode=ParseMode.HTML)
             await asyncio.sleep(1.5)
         except FloodWait as e:
             await asyncio.sleep(e.value)
