@@ -23,7 +23,7 @@ app = Client(
 
 # --- DUMMY WEB SERVER FOR RENDER ---
 async def handle(request):
-    return web.Response(text="💀 Clario Premium is Online!")
+    return web.Response(text="💀 Clario Premium is Online and Locked Down!")
 
 async def web_server():
     web_app = web.Application()
@@ -61,7 +61,6 @@ async def handle_lookup(client, message: Message):
     # 1. FASTER FUNNY ANIMATION SEQUENCE
     msg = await message.reply_text("<i>Initializing...</i>", parse_mode=ParseMode.HTML)
     
-    # Removed the last joke from this fast loop
     anim_stages = [
         "🛸 <i>Connecting To Jadoo...</i>",
         "🚀 <i>Consulting To Elon Mask...</i>",
@@ -74,11 +73,11 @@ async def handle_lookup(client, message: Message):
         "💔 <i>Calling To Ex...</i>"
     ]
     
-    # Ultra-fast edit loop (0.2s)
+    # Ultra-fast edit loop (0.25s)
     for stage in anim_stages:
         try:
             await msg.edit_text(stage, parse_mode=ParseMode.HTML)
-            await asyncio.sleep(0.25) # Slightly bumped to 0.25s so Telegram doesn't skip frames
+            await asyncio.sleep(0.25)
         except FloodWait as e:
             await asyncio.sleep(e.value)
         except:
@@ -140,13 +139,17 @@ async def handle_lookup(client, message: Message):
         # 4. SHOW THE FINAL JOKE AND FREEZE 💀
         try:
             await msg.edit_text("💀 <b>Details Fetched Successfully From NASA Servers💀</b>", parse_mode=ParseMode.HTML)
-            await asyncio.sleep(1.5) # Force it to stay on screen for 1.5 seconds so you can read it!
+            await asyncio.sleep(1.5)
         except FloodWait as e:
             await asyncio.sleep(e.value)
 
-        # 5. RESTORE ARRIVAL ANIMATION
+        # 5. RESTORE ARRIVAL ANIMATION + CONTENT PROTECTION 🔒
         await msg.delete()
-        final_msg = await message.reply_text(output_msg, parse_mode=ParseMode.HTML)
+        final_msg = await message.reply_text(
+            output_msg, 
+            parse_mode=ParseMode.HTML, 
+            protect_content=True  # <--- THIS LOCKS THE MESSAGE DOWN
+        )
 
         # 6. SILENT CRYSTAL CLEAN PROTOCOL: 60 Second Delete Timer
         await asyncio.sleep(60)
@@ -163,10 +166,11 @@ async def handle_lookup(client, message: Message):
 async def main():
     await web_server() 
     await app.start()  
-    print("💀 Clario Premium is running...")
+    print("💀 Clario Premium is running securely...")
     await pyrogram.idle() 
     await app.stop()
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
+    
