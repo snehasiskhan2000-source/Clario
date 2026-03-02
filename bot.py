@@ -56,12 +56,12 @@ async def handle_lookup(client, message: Message):
     if len(clean_number) > 10 and clean_number.startswith("91"):
         clean_number = clean_number[2:]
 
-    # Show "Bot is typing..." at the top of the user's screen for a native feel
     await client.send_chat_action(message.chat.id, ChatAction.TYPING)
 
-    # 1. FUNNY FAST-EDIT ANIMATION SEQUENCE
+    # 1. FASTER FUNNY ANIMATION SEQUENCE
     msg = await message.reply_text("<i>Initializing...</i>", parse_mode=ParseMode.HTML)
     
+    # Removed the last joke from this fast loop
     anim_stages = [
         "🛸 <i>Connecting To Jadoo...</i>",
         "🚀 <i>Consulting To Elon Mask...</i>",
@@ -74,11 +74,11 @@ async def handle_lookup(client, message: Message):
         "💔 <i>Calling To Ex...</i>"
     ]
     
-    # Fast edit loop
+    # Ultra-fast edit loop (0.2s)
     for stage in anim_stages:
         try:
             await msg.edit_text(stage, parse_mode=ParseMode.HTML)
-            await asyncio.sleep(0.4) 
+            await asyncio.sleep(0.25) # Slightly bumped to 0.25s so Telegram doesn't skip frames
         except FloodWait as e:
             await asyncio.sleep(e.value)
         except:
@@ -128,7 +128,6 @@ async def handle_lookup(client, message: Message):
             output_msg += f"📞 <b>Mobile:</b> <code>{mobile}</code>\n"
             output_msg += f"📞 <b>Alt Mobile:</b> {alt_mobile}\n"
             output_msg += f"✉️ <b>Email:</b> {email}\n"
-            # Explicit Telegram spoiler format
             output_msg += f"🪪 <b>Aadhaar:</b> <tg-spoiler>{aadhaar_id}</tg-spoiler>\n"
             output_msg += f"🏠 <b>Address:</b> {clean_address}\n"
             output_msg += f"🆔 <b>Circle:</b> {circle}\n"
@@ -138,13 +137,18 @@ async def handle_lookup(client, message: Message):
         output_msg += f"👨‍💻 Checked by: @{bot_info.username}\n"
         output_msg += "👑 Powered by: @techbittu69"
         
-        # 4. RESTORE ARRIVAL ANIMATION
-        # We delete the loading message, and send the final intelligence as a NEW message 
-        # so it pops into the chat smoothly.
+        # 4. SHOW THE FINAL JOKE AND FREEZE 💀
+        try:
+            await msg.edit_text("💀 <b>Details Fetched Successfully From NASA Servers💀</b>", parse_mode=ParseMode.HTML)
+            await asyncio.sleep(1.5) # Force it to stay on screen for 1.5 seconds so you can read it!
+        except FloodWait as e:
+            await asyncio.sleep(e.value)
+
+        # 5. RESTORE ARRIVAL ANIMATION
         await msg.delete()
         final_msg = await message.reply_text(output_msg, parse_mode=ParseMode.HTML)
 
-        # 5. SILENT CRYSTAL CLEAN PROTOCOL: 60 Second Delete Timer
+        # 6. SILENT CRYSTAL CLEAN PROTOCOL: 60 Second Delete Timer
         await asyncio.sleep(60)
         try:
             await final_msg.delete() 
@@ -166,4 +170,3 @@ async def main():
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
-    
