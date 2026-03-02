@@ -7,7 +7,7 @@ from pyrogram.types import Message
 from pyrogram.enums import ParseMode
 from aiohttp import web
 
-# --- CONFIGURATION (Pulls from Render Environment Variables) ---
+# --- CONFIGURATION ---
 API_ID = os.environ.get("API_ID", "YOUR_API_ID_HERE") 
 API_HASH = os.environ.get("API_HASH", "YOUR_API_HASH_HERE")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
@@ -37,39 +37,38 @@ async def web_server():
 @app.on_message(filters.command(["start", "help"]))
 async def start(client, message: Message):
     welcome_text = (
-        "💎 <b>Welcome to Clario.</b>\n\n"
-        "<i>The ultimate secure lookup terminal.</i> 🦅\n\n"
-        "Provide a 10-digit mobile number, and I will initiate a real-time extraction of the target's registry data.\n\n"
-        "⚠️ <i>Note: For absolute privacy, extracted intelligence automatically self-destructs after 60 seconds.</i>"
+        "👋 <b>Welcome To Clario</b>\n\n"
+        "A Premium Way To Discover Who’s Behind The Number.\n\n"
+        "Fast, Refined And Intelligent — Clario Helps You Identify Callers With Ease And Confidence.\n\n"
+        "Just Send Me A Phone Number. Ex- <code>9876543210</code>"
     )
     await message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
 
 @app.on_message(filters.text & filters.private)
 async def handle_lookup(client, message: Message):
-    # Ignore commands
     if message.text.startswith("/"):
         return
         
     target_number = message.text.strip()
     
-    # Clean the number
     clean_number = "".join(filter(str.isdigit, target_number))
     if len(clean_number) > 10 and clean_number.startswith("91"):
         clean_number = clean_number[2:]
 
-    # 1. Start Initial Animation
-    loading_text = "<b>[■□□□□□□□□□] 10%</b>\n<i>⚡ Initializing secure connection...</i>"
+    # 1. Ultra-Premium Initial Animation
+    loading_text = "<b>[    INITIATING    ]</b>\n<i>⚡ Establishing secure uplink to Clario servers...</i>"
     msg = await message.reply_text(loading_text, parse_mode=ParseMode.HTML)
     
-    # 2. High-End Editing Animation Sequence
+    # 2. Sleek Terminal Loading Sequence
     anim_stages = [
-        "<b>[■■■■□□□□□□] 40%</b>\n<i>🔍 Scanning databases...</i>",
-        "<b>[■■■■■■■□□□] 70%</b>\n<i>🧬 Extracting target identity & Aadhaar...</i>",
-        "<b>[■■■■■■■■■■] 100%</b>\n<i>✅ Decrypting payload...</i>"
+        "<b>[▓▓░░░░░░░░] 20%</b>\n<i>🔐 Bypassing regional firewalls...</i>",
+        "<b>[▓▓▓▓▓░░░░░] 50%</b>\n<i>📡 Intercepting target telemetrics...</i>",
+        "<b>[▓▓▓▓▓▓▓▓░░] 80%</b>\n<i>🧬 Decrypting Aadhaar & Identity records...</i>",
+        "<b>[▓▓▓▓▓▓▓▓▓▓] 100%</b>\n<i>✅ Intelligence secured. Structuring payload...</i>"
     ]
     
     for stage in anim_stages:
-        await asyncio.sleep(0.6) 
+        await asyncio.sleep(0.7) 
         try:
             await msg.edit_text(stage, parse_mode=ParseMode.HTML)
         except:
@@ -96,7 +95,6 @@ async def handle_lookup(client, message: Message):
         unique_records = []
         seen = set()
         for r in records:
-            # Create a unique signature using Name and ID so we don't print duplicates
             sig = f"{r.get('name')}_{r.get('id')}"
             if sig not in seen:
                 seen.add(sig)
@@ -109,11 +107,10 @@ async def handle_lookup(client, message: Message):
             father = record.get("father_name", "N/A")
             mobile = record.get("mobile", target_number)
             alt_mobile = record.get("alt_mobile", "None")
-            email = record.get("email", "None") or "None" # In case the JSON returns 'null'
+            email = record.get("email", "None") or "None" 
             aadhaar_id = record.get("id", "N/A")
             circle = record.get("circle", "N/A")
             
-            # Clean up that messy address string
             raw_address = record.get("address", "N/A")
             clean_address = raw_address.replace("!", ", ").strip(", ")
 
@@ -129,17 +126,16 @@ async def handle_lookup(client, message: Message):
         
         bot_info = await client.get_me()
         output_msg += f"👨‍💻 Checked by: @{bot_info.username}\n"
-        output_msg += "👑 Powered by: @techbittu69\n\n"
-        output_msg += "⏱ <i>Message will self-destruct in 60s.</i>"
+        output_msg += "👑 Powered by: @techbittu69"
         
         # 6. Send final payload
         await msg.edit_text(output_msg, parse_mode=ParseMode.HTML)
 
-        # 7. CRYSTAL CLEAN PROTOCOL: 60 Second Delete Timer
+        # 7. SILENT CRYSTAL CLEAN PROTOCOL: 60 Second Delete Timer (No Warning Text)
         await asyncio.sleep(60)
         try:
-            await msg.delete() # Deletes the bot's data message
-            await message.delete() # Deletes the user's number message for total cleanliness
+            await msg.delete() 
+            await message.delete() 
         except:
             pass
 
