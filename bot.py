@@ -3,15 +3,24 @@ import asyncio
 import aiohttp
 import pyrogram
 from pyrogram import Client, filters
-from pyrogram.types import Message
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyrogram.enums import ParseMode, ChatAction
 from pyrogram.errors import FloodWait
 from aiohttp import web
 
 # --- CONFIGURATION ---
-API_ID = os.environ.get("API_ID", "YOUR_API_ID_HERE") 
-API_HASH = os.environ.get("API_HASH", "YOUR_API_HASH_HERE")
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
+# Pulling secrets from Environment Variables
+API_ID = os.environ.get("API_ID", "YOUR_API_ID") 
+API_HASH = os.environ.get("API_HASH", "YOUR_API_HASH")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN")
+# MUST BE AN INTEGER: e.g., 123456789
+ADMIN_ID = int(os.environ.get("ADMIN_ID", "0")) 
+
+# --- IN-MEMORY DATABASE (Resets on restart) ---
+# For a production bot on Render, you should ideally use a real database (like MongoDB or Redis)
+# because Render instances sleep and restart, resetting these variables.
+user_db = set() 
+bot_live = True
 
 # Initialize Pyrogram Client
 app = Client(
@@ -23,7 +32,7 @@ app = Client(
 
 # --- DUMMY WEB SERVER FOR RENDER ---
 async def handle(request):
-    return web.Response(text="💀 Clario Premium is Online and Locked Down!")
+    return web.Response(text="💀 Clario Terminal is Online and Locked Down!")
 
 async def web_server():
     web_app = web.Application()
@@ -33,10 +42,102 @@ async def web_server():
     port = int(os.environ.get("PORT", 8080))
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
+    print(f"💀 Web server bound to port {port}")
+
+# --- ADMIN PANEL ---
+@app.on_message(filters.command(["admin"]) & filters.private)
+async def admin_panel(client: Client, message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    
+    status_text = "🟢 ONLINE" if bot_live else "🔴 OFFLINE"
+    text = f"💀 **Clario Admin Terminal**\n\n**System Status:** {status_text}\n**Total Users:** {len(user_db)}"
+    
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📢 Broadcast", callback_data="admin_broadcast")],
+        [InlineKeyboardButton("📊 Stats", callback_data="admin_stats")],
+        [InlineKeyboardButton(f"Toggle Bot ({'OFF' if bot_live else 'ON'})", callback_data="admin_toggle")]
+    ])
+    
+    await message.reply_text(text, reply_markup=buttons, parse_mode=ParseMode.MARKDOWN)
+
+@app.on_callback_query(filters.regex(r"^admin_"))
+async def admin_callback(client: Client, callback_query: CallbackQuery):
+    global bot_live
+    
+    if callback_query.from_user.id != ADMIN_ID:
+        await callback_query.answer("Access Denied.", show_alert=True)
+        return
+
+    data = callback_query.data
+
+    if data == "admin_toggle":
+        bot_live = not bot_live
+        status_text = "🟢 ONLINE" if bot_live else "🔴 OFFLINE"
+        
+        # Re-build buttons
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📢 Broadcast", callback_data="admin_broadcast")],
+            [InlineKeyboardButton("📊 Stats", callback_data="admin_stats")],
+            [InlineKeyboardButton(f"Toggle Bot ({'OFF' if bot_live else 'ON'})", callback_data="admin_toggle")]
+        ])
+        
+        text = f"💀 **Clario Admin Terminal**\n\n**System Status:** {status_text}\n**Total Users:** {len(user_db)}"
+        await callback_query.message.edit_text(text, reply_markup=buttons, parse_mode=ParseMode.MARKDOWN)
+        await callback_query.answer(f"Bot is now {'LIVE' if bot_live else 'OFFLINE'}")
+
+    elif data == "admin_stats":
+        await callback_query.answer(f"Total Users: {len(user_db)}", show_alert=True)
+
+    elif data == "admin_broadcast":
+        # Ask admin for the broadcast message
+        await callback_query.message.reply_text("Please send the message you want to broadcast.\nReply to this message.", reply_markup=pyrogram.types.ForceReply(selective=True))
+        await callback_query.answer()
+
+# Listen for the admin's broadcast reply
+@app.on_message(filters.private & filters.reply & filters.user(ADMIN_ID))
+async def handle_broadcast(client: Client, message: Message):
+    # Check if the message being replied to is the broadcast prompt
+    if message.reply_to_message.text and "Please send the message you want to broadcast." in message.reply_to_message.text:
+        if not user_db:
+            await message.reply_text("❌ No users in the database to broadcast to.")
+            return
+
+        broadcast_msg = message.text
+        if not broadcast_msg:
+             # If they sent a photo/video, Pyrogram requires different handling. Sticking to text for simplicity here.
+             await message.reply_text("❌ Please send a text message for the broadcast.")
+             return
+            
+        success = 0
+        failed = 0
+        
+        status_msg = await message.reply_text("<i>Initiating broadcast...</i>", parse_mode=ParseMode.HTML)
+        
+        for user_id in user_db:
+            try:
+                await client.send_message(user_id, f"📢 **Broadcast**\n\n{broadcast_msg}")
+                success += 1
+                await asyncio.sleep(0.1) # Prevent FloodWait
+            except FloodWait as e:
+                await asyncio.sleep(e.value)
+                await client.send_message(user_id, f"📢 **Broadcast**\n\n{broadcast_msg}")
+                success += 1
+            except Exception:
+                failed += 1
+                
+        await status_msg.edit_text(f"✅ **Broadcast Complete**\n\nSent: {success}\nFailed: {failed}", parse_mode=ParseMode.MARKDOWN)
+
 
 # --- BOT COMMANDS & LOGIC ---
-@app.on_message(filters.command(["start", "help"]))
+@app.on_message(filters.command(["start", "help"]) & filters.private)
 async def start(client, message: Message):
+    user_db.add(message.from_user.id) # Add user to DB
+    
+    if not bot_live and message.from_user.id != ADMIN_ID:
+        await message.reply_text("Bot Is Not Live👀")
+        return
+
     welcome_text = (
         "👋 <b>Welcome To Clario</b>\n\n"
         "A Premium Way To Discover Who’s Behind The Number.\n\n"
@@ -47,7 +148,14 @@ async def start(client, message: Message):
 
 @app.on_message(filters.text & filters.private)
 async def handle_lookup(client, message: Message):
+    # Ignore commands
     if message.text.startswith("/"):
+        return
+        
+    user_db.add(message.from_user.id) # Ensure user is in DB
+        
+    if not bot_live and message.from_user.id != ADMIN_ID:
+        await message.reply_text("Bot Is Not Live👀")
         return
         
     target_number = message.text.strip()
@@ -138,7 +246,7 @@ async def handle_lookup(client, message: Message):
         
         # 4. SHOW THE FINAL JOKE AND FREEZE 💀
         try:
-            await msg.edit_text("<b>Details Fetched Successfully From NASA Servers💀</b>", parse_mode=ParseMode.HTML)
+            await msg.edit_text("💀 <b>Details Fetched Successfully From NASA Servers💀</b>", parse_mode=ParseMode.HTML)
             await asyncio.sleep(1.5)
         except FloodWait as e:
             await asyncio.sleep(e.value)
@@ -173,4 +281,3 @@ async def main():
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
-    
