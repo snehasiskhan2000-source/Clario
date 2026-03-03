@@ -7,20 +7,30 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, 
 from pyrogram.enums import ParseMode, ChatAction
 from pyrogram.errors import FloodWait
 from aiohttp import web
+from motor.motor_asyncio import AsyncIOMotorClient
 
 # --- CONFIGURATION ---
 # Pulling secrets from Environment Variables
 API_ID = os.environ.get("API_ID", "YOUR_API_ID") 
 API_HASH = os.environ.get("API_HASH", "YOUR_API_HASH")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN")
+MONGO_URI = os.environ.get("MONGO_URI", "YOUR_MONGO_URI") # Added MongoDB URI
 # MUST BE AN INTEGER: e.g., 123456789
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "0")) 
 
-# --- IN-MEMORY DATABASE (Resets on restart) ---
-# For a production bot on Render, you should ideally use a real database (like MongoDB or Redis)
-# because Render instances sleep and restart, resetting these variables.
-user_db = set() 
+# --- MONGODB DATABASE SETUP ---
+mongo_client = AsyncIOMotorClient(MONGO_URI)
+db = mongo_client["clario_bot"]
+users_collection = db["users"]
+
+# In-memory toggle for maintenance mode
 bot_live = True
+
+# Helper function to add users to database
+async def add_user_to_db(user_id: int):
+    user = await users_collection.find_one({"_id": user_id})
+    if not user:
+        await users_collection.insert_one({"_id": user_id})
 
 # Initialize Pyrogram Client
 app = Client(
@@ -50,8 +60,9 @@ async def admin_panel(client: Client, message: Message):
     if message.from_user.id != ADMIN_ID:
         return
     
+    total_users = await users_collection.count_documents({})
     status_text = "🟢 ONLINE" if bot_live else "🔴 OFFLINE"
-    text = f"💀 **Clario Admin Terminal**\n\n**System Status:** {status_text}\n**Total Users:** {len(user_db)}"
+    text = f"💀 **Clario Admin Terminal**\n\n**System Status:** {status_text}\n**Total Users:** {total_users}"
     
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("📢 Broadcast", callback_data="admin_broadcast")],
@@ -74,6 +85,7 @@ async def admin_callback(client: Client, callback_query: CallbackQuery):
     if data == "admin_toggle":
         bot_live = not bot_live
         status_text = "🟢 ONLINE" if bot_live else "🔴 OFFLINE"
+        total_users = await users_collection.count_documents({})
         
         # Re-build buttons
         buttons = InlineKeyboardMarkup([
@@ -82,12 +94,13 @@ async def admin_callback(client: Client, callback_query: CallbackQuery):
             [InlineKeyboardButton(f"Toggle Bot ({'OFF' if bot_live else 'ON'})", callback_data="admin_toggle")]
         ])
         
-        text = f"💀 **Clario Admin Terminal**\n\n**System Status:** {status_text}\n**Total Users:** {len(user_db)}"
+        text = f"💀 **Clario Admin Terminal**\n\n**System Status:** {status_text}\n**Total Users:** {total_users}"
         await callback_query.message.edit_text(text, reply_markup=buttons, parse_mode=ParseMode.MARKDOWN)
         await callback_query.answer(f"Bot is now {'LIVE' if bot_live else 'OFFLINE'}")
 
     elif data == "admin_stats":
-        await callback_query.answer(f"Total Users: {len(user_db)}", show_alert=True)
+        total_users = await users_collection.count_documents({})
+        await callback_query.answer(f"Total Users: {total_users}", show_alert=True)
 
     elif data == "admin_broadcast":
         # Ask admin for the broadcast message
@@ -99,7 +112,8 @@ async def admin_callback(client: Client, callback_query: CallbackQuery):
 async def handle_broadcast(client: Client, message: Message):
     # Check if the message being replied to is the broadcast prompt
     if message.reply_to_message.text and "Please send the message you want to broadcast." in message.reply_to_message.text:
-        if not user_db:
+        total_users = await users_collection.count_documents({})
+        if total_users == 0:
             await message.reply_text("❌ No users in the database to broadcast to.")
             return
 
@@ -114,7 +128,9 @@ async def handle_broadcast(client: Client, message: Message):
         
         status_msg = await message.reply_text("<i>Initiating broadcast...</i>", parse_mode=ParseMode.HTML)
         
-        for user_id in user_db:
+        cursor = users_collection.find({})
+        async for document in cursor:
+            user_id = document["_id"]
             try:
                 await client.send_message(user_id, f"📢 {broadcast_msg}")
                 success += 1
@@ -132,7 +148,7 @@ async def handle_broadcast(client: Client, message: Message):
 # --- BOT COMMANDS & LOGIC ---
 @app.on_message(filters.command(["start", "help"]) & filters.private)
 async def start(client, message: Message):
-    user_db.add(message.from_user.id) # Add user to DB
+    await add_user_to_db(message.from_user.id) # Add user to DB
     
     if not bot_live and message.from_user.id != ADMIN_ID:
         await message.reply_text("🔧 <b>Maintenance Mode</b>\n\n⚠️ The bot is currently under maintenance.\nPlease wait while we improve our services.\n\nJoin for Updates: @techbittu69\n⏰ We'll be back soon!")
@@ -152,7 +168,7 @@ async def handle_lookup(client, message: Message):
     if message.text.startswith("/"):
         return
         
-    user_db.add(message.from_user.id) # Ensure user is in DB
+    await add_user_to_db(message.from_user.id) # Ensure user is in DB
         
     if not bot_live and message.from_user.id != ADMIN_ID:
         await message.reply_text("🔧 <b>Maintenance Mode</b>\n\n⚠️ The bot is currently under maintenance.\nPlease wait while we improve our services.\n\nJoin for Updates: @techbittu69\n⏰ We'll be back soon!")
@@ -274,11 +290,11 @@ async def handle_lookup(client, message: Message):
 async def main():
     await web_server() 
     await app.start()  
-    print("💀 Clario Premium is running securely...")
+    print("💀 Clario Premium is running securely with MongoDB...")
     await pyrogram.idle() 
     await app.stop()
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
-    
+        
